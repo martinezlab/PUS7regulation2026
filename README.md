@@ -4,7 +4,11 @@ RNA sequence, structure, and cell type specific features drive pseudouridylation
 Code affiliated with the paper above. Topics are organized as follows:
 
 ## Figure 1: direct RNA
-basecalling on Sherlock, ModDetect site calling, UNUAR calibration curves, stoichiometry correction, motif enrichment analysis
+- direct RNA basecalling on Sherlock
+- ModDetect site calling
+- UNUAR standard: calibration curves derivation and stoichiometry correction 
+- motif enrichment analysis
+- PUS7 KO analysis
 
 ## Figure 2: endogenous Nano-BID-Amp
 fastq file prep, BIDdetect site calling, BID and PRAISE comparison
