@@ -23,7 +23,13 @@ Code affiliated with the paper above. Topics are organized as follows:
 - in vitro versus in cellulo comparisons
 
 ## Figure 4: sequence and structure features
-motif enrichment analysis, RNAfold and feature extraction, basecalling on Sherlock, fastq file prep and SHAPEmapper pipeline, Illumina and Nanopore comparison, structure visualization, quartile analysis
+- sequence logos and motif enrichment analysis
+- basecalling on Sherlock
+- fastq file prep and SHAPEmapper pipeline
+- RNAfold and feature extraction
+- structure visualization
+- Illumina and Nanopore comparison
+- structure analysis: MFE, pairing probabilities
 
 ## Figure 5: mutagenesis and ASOs
 mutagenesis creation and analysis, ASO analysis
