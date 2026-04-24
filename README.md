@@ -1,7 +1,11 @@
 # PUS7regulation2026
 RNA sequence, structure, and cell type specific features drive pseudouridylation by PUS7
 
-Code affiliated with the paper above. Topics are organized as follows:
+Code affiliated with the paper above. 
+
+The majority of code was developed with the assistance of various AI agents, primarily Gemini Pro 3, Gemini 2.5, and Claude 4.5 Sonnet. All AI-developed code was reviewed and edited by the authors before being used in analysis pipelines.
+
+Topics are organized as follows:
 
 ## Figure 1: direct RNA
 - direct RNA basecalling on Sherlock
