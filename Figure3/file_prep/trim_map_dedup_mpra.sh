@@ -8,20 +8,21 @@
 
 # Function to display usage information
 usage() {
-    echo "Usage: $0 -m <sample_map_file> -i <input_dir> -o <top_level_output_dir> -b <bowtie-index>"
+    echo "Usage: $0 -m <sample_map_file> -i <input_dir> -o <top_level_output_dir> -r <ref_fasta> [-t <task_id>]"
     echo ""
     echo "Options:"
-    echo "  -m, --map-file <file>        Path to the file mapping sample IDs to barcodes."
-    echo "  -i, --input-dir <dir>        Directory containing the input fastq.gz files."
-    echo "  -o, --output-dir <dir>       The root directory where all output will be stored."
-    echo "  -b, --bowtie-index <path>    Path and base name for the Bowtie2 index."
+    echo "  -m, --map_file <file>        Path to the file mapping sample IDs to barcodes."
+    echo "  -i, --input_dir <dir>        Directory containing the input fastq.gz files."
+    echo "  -o, --output_dir <dir>       The root directory where all output will be stored."
+    echo "  -r, --ref_fasta <file>       Reference FASTA file used for mapping."
+    echo "  -t, --task_id <integer>      SLURM_ARRAY_TASK_ID to simulate when not run as a SLURM job."
     echo "  -h, --help                   Display this help message."
     exit 1
 }
 
 # Define short and long options
-SHORT_OPTS="m:i:o:b:h"
-LONG_OPTS="map-file:,input-dir:,output-dir:,bowtie-index:,help"
+SHORT_OPTS="m:i:o:r:t:h"
+LONG_OPTS="map_file:,input_dir:,output_dir:,ref_fasta:,task_id:,help"
 
 # Parse the options using getopt
 PARSED_OPTS=$(getopt -o "$SHORT_OPTS" --long "$LONG_OPTS" -n "$0" -- "$@")
@@ -35,21 +36,25 @@ fi
 # Replace the script's positional parameters with the parsed options
 eval set -- "$PARSED_OPTS"
 
+# Initialize TASK_ID variable
+TASK_ID=""
+
 # Loop through the parsed options to assign variables
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -m|--map-file)      SAMPLE_MAP_FILE="$2"; shift 2 ;;
-        -i|--input-dir)     FQ_SOURCE_DIR="$2"; shift 2 ;;
-        -o|--output-dir)    TOP_LEVEL_OUTPUT_DIR="$2"; shift 2 ;;
-        -b|--bowtie-index)  BOWTIE2_INDEX="$2"; shift 2 ;;
-        -h|--help)          usage ;; # Assumes 'usage' function will exit the script
-        --)                 shift; break ;;
-        *)                  echo "Unknown option: $1" >&2; exit 1 ;;
+        -m|--map_file)    SAMPLE_MAP_FILE="$2"; shift 2 ;;
+        -i|--input_dir)   FQ_SOURCE_DIR="$2"; shift 2 ;;
+        -o|--output_dir)  TOP_LEVEL_OUTPUT_DIR="$2"; shift 2 ;;
+        -r|--ref_fasta)   REF_FA="$2"; shift 2 ;;
+        -t|--task_id)     TASK_ID="$2"; shift 2 ;;  # Store the task ID
+        -h|--help)        usage ;; # Assumes 'usage' function will exit the script
+        --)               shift; break ;;
+        *)                echo "Unknown option: $1" >&2; exit 1 ;;
     esac
 done
 
 # Check if all required arguments were provided
-if [ -z "$SAMPLE_MAP_FILE" ] || [ -z "$FQ_SOURCE_DIR" ] || [ -z "$TOP_LEVEL_OUTPUT_DIR" ] || [ -z "$BOWTIE2_INDEX" ]; then
+if [ -z "$SAMPLE_MAP_FILE" ] || [ -z "$FQ_SOURCE_DIR" ] || [ -z "$TOP_LEVEL_OUTPUT_DIR" ] || [ -z "$REF_FA" ]; then
     echo "Error: Missing one or more required arguments."
     usage
 fi
@@ -59,8 +64,9 @@ if [ ! -f "$SAMPLE_MAP_FILE" ]; then
     echo "Error: Sample map file not found at: $SAMPLE_MAP_FILE"
     exit 1
 fi
-if [ ! -f "${BOWTIE2_INDEX}.1.bt2" ]; then
-    echo "Error: Bowtie2 index file not found. Checked for: ${BOWTIE2_INDEX}.1.bt2" >&2; exit 1
+if [ ! -f "$REF_FA" ]; then
+    echo "Error: Reference FASTA file not found at: $REF_FA"
+    exit 1
 fi
 if [ ! -d "$FQ_SOURCE_DIR" ]; then
     echo "Error: FASTQ source directory not found at: $FQ_SOURCE_DIR"
@@ -73,14 +79,30 @@ echo "--- Script Arguments Received ---"
 echo "Sample Map File:          ${SAMPLE_MAP_FILE}"
 echo "FASTQ Source Directory:   ${FQ_SOURCE_DIR}"
 echo "Top-Level Output Dir:     ${TOP_LEVEL_OUTPUT_DIR}"
-echo "Bowtie2 Index:            ${BOWTIE2_INDEX}"
+echo "Reference FASTA:          ${REF_FA}"
+if [ -n "$TASK_ID" ]; then
+  echo "Command Line Task ID:   ${TASK_ID}"
+fi
 echo "---------------------------------"
 echo "" # Add a blank line for readability
 
 # --- 1. SLURM Array Task Setup ---
-if [ -z "$SLURM_ARRAY_TASK_ID" ]; then
-    echo "Error: This script must be run as a SLURM array job."
-    exit 1
+# Check if SLURM_ARRAY_TASK_ID is defined and a positive integer.
+if [[ -z "$SLURM_ARRAY_TASK_ID" ]]; then
+    if [[ -n "$TASK_ID" ]]; then
+        # Check if the provided task ID is a positive integer
+        if ! [[ "$TASK_ID" =~ ^[0-9]+$ ]]; then
+            echo "Error: Provided TASK_ID '$TASK_ID' is not a positive integer."
+            exit 1
+        fi
+        SLURM_ARRAY_TASK_ID="$TASK_ID"  # Assign the provided task ID
+        echo "Info: Running from command line, simulating SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID"
+    else
+        echo "Error: This script requires either SLURM_ARRAY_TASK_ID (when run as a SLURM array job) or -t/--task_id (when run from the command line)."
+        exit 1
+    fi
+else
+  echo "Info: Running as SLURM job, using SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID"
 fi
 
 # Read the line from the sample map corresponding to the task ID
@@ -149,8 +171,9 @@ PROJECT_DIR="${TOP_LEVEL_OUTPUT_DIR}/${SAMPLE_ID}"
 FINAL_COMMON_DIR="${TOP_LEVEL_OUTPUT_DIR}/deduplicated_bam"
 
 # Load modules
-ml biology py-cutadapt/1.18_py36 samtools bowtie2/2.3.4.1
+ml biology py-cutadapt/1.18_py36 samtools
 ml python/3.6.1
+ml devel java/11
 
 # Stop the script if any command fails
 set -e
@@ -166,6 +189,7 @@ ANTISENSE_ADAPTER_3PRIME="CGCAATATCAGCACCAACAGAAA"
 POOL_SENSE_ADAPTER_5PRIME="GACGCTCTTCCGATCT"
 POOL_SENSE_ADAPTER_3PRIME="CACTCGGGCACCAAGGAC"
 UMI_PATTERN="NNNNNNNNNN"
+MAPQ_THRESHOLD=30
 
 # SLURM-aware thread count
 if [ -n "$SLURM_CPUS_PER_TASK" ]; then THREADS="$SLURM_CPUS_PER_TASK"; else THREADS=1; fi
@@ -222,8 +246,10 @@ COMBINED_UMI="${TMP_DIR}/${SAMPLE_ID}_all_sense_umi.fastq"
 COMBINED_TRIM2="${TMP_DIR}/${SAMPLE_ID}_all_sense_trim2.fastq"
 MAPPED_SAM="${TMP_DIR}/${SAMPLE_ID}_mapped.sam"
 MAPPED_BAM="${TMP_DIR}/${SAMPLE_ID}_mapped_sorted.bam"
+PRIMARY_ONLY_BAM="${TMP_DIR}/${SAMPLE_ID}_primary_only.bam"
+HIGH_QUAL_PRIMARY_BAM="${TMP_DIR}/${SAMPLE_ID}_high_qual_primary.bam"
 DEDUP_BAM="${FINAL_DIR}/${SAMPLE_ID}_deduplicated.bam"
-BOWTIE_LOG="${LOGS_DIR}/${SAMPLE_ID}_bowtie2_mapping.log"
+MINIMAP2_LOG="${LOGS_DIR}/${SAMPLE_ID}_minimap2_mapping.log"
 DEDUP_LOG="${LOGS_DIR}/${SAMPLE_ID}_umi_tools_dedup.log"
 
 # --- 1. Setup Read Tracking ---
@@ -297,19 +323,16 @@ cutadapt --discard-untrimmed -m 120 -O 10 --cores="$THREADS" \
 track_metrics "5_Final_Trimmed" "$COMBINED_TRIM2"
 end_time=$(date +%s); log_message "Step 5 finished. Duration: $(format_duration $((end_time - start_time)))"
 
-# --- 6. Map reads with Bowtie2 ---
-log_message "Step 6: Mapping reads with Bowtie2..."
+# --- 6. Map reads with Minimap2 ---
+log_message "Step 6: Mapping reads with Minimap2..."
 start_time=$(date +%s)
 
-bowtie2 \
-    -x "$BOWTIE2_INDEX" \
-    -U "$COMBINED_TRIM2" \
-    -S "$MAPPED_SAM" \
-    -p "$THREADS" \
-    --end-to-end \
-    --no-unal \
-    --rdg 4,2 \
-    2> "$BOWTIE_LOG"
+$OAK/rodell/minimap2/minimap2 \
+    -ax sr \
+    "$REF_FA" \
+    "$COMBINED_TRIM2" \
+    -t "$THREADS" \
+    > "$MAPPED_SAM"
 
 track_metrics "6_Mapped_SAM" "$MAPPED_SAM"
 end_time=$(date +%s); log_message "Step 6 finished. Duration: $(format_duration $((end_time - start_time)))"
@@ -322,20 +345,29 @@ samtools index "$MAPPED_BAM"
 track_metrics "7_Sorted_BAM" "$MAPPED_BAM"
 end_time=$(date +%s); log_message "Step 7 finished. Duration: $(format_duration $((end_time - start_time)))"
 
-# --- 8. Deduplicate Reads with UMI-tools ---
-log_message "Step 8: Deduplicating reads with UMI-tools and indexing..."
+# --- 8. Filter for Primary Alignments ---
+# This step removes secondary (256) and supplementary (2048) alignments. 256 + 2048 = 2304.
+log_message "Step 8: Filtering for primary alignments only with MAPQ >= ${MAPQ_THRESHOLD}..."
 start_time=$(date +%s)
-umi_tools dedup \
-    --method directional \
-    -I "$MAPPED_BAM" \
-    -S "$DEDUP_BAM" \
-    -L "$DEDUP_LOG"
-track_metrics "8_Deduplicated_BAM" "$DEDUP_BAM"
+samtools view -h -b -F 2304 -@ "$THREADS" -o "$PRIMARY_ONLY_BAM" "$MAPPED_BAM"
+track_metrics "8_Primary_Only_BAM" "$PRIMARY_ONLY_BAM"
+
+samtools view -h -b -q "${MAPQ_THRESHOLD}" -@ "$THREADS" -o "$HIGH_QUAL_PRIMARY_BAM" "$PRIMARY_ONLY_BAM"
+samtools index -@ "$THREADS" "$HIGH_QUAL_PRIMARY_BAM"
+track_metrics "8b_High_Qual_Primary_BAM" "$HIGH_QUAL_PRIMARY_BAM"
 end_time=$(date +%s); log_message "Step 8 finished. Duration: $(format_duration $((end_time - start_time)))"
 
+# --- 9. Deduplicate Reads with UMI-tools ---
+log_message "Step 9: Deduplicating reads with UMI-tools and indexing..."
+start_time=$(date +%s)
+$HOME/UMICollapse/umicollapse bam \
+    -i "$HIGH_QUAL_PRIMARY_BAM" \
+    -o "$DEDUP_BAM"
+track_metrics "9_Deduplicated_BAM" "$DEDUP_BAM"
+end_time=$(date +%s); log_message "Step 9 finished. Duration: $(format_duration $((end_time - start_time)))"
 
-# --- Step 9: Copy Final BAM to Common Output Directory ---
-log_message "Step 9: Copying and indexing final BAM..."
+# --- Step 10: Copy Final BAM to Common Output Directory ---
+log_message "Step 10: Copying and indexing final BAM..."
 start_time=$(date +%s)
 
 DEST_BAM_PATH="${FINAL_COMMON_DIR}/${SAMPLE_ID}.bam"
@@ -363,12 +395,12 @@ fi
 # 4. Index the bam file
 samtools index "$DEST_BAM_PATH"
 
-# --- Step 10: Clean up intermediate files ---
-# log_message "Step 10: Remove intermediary files."
-# rm -rf "$TMP_DIR"
+# --- Clean up intermediate files ---
+log_message "Remove intermediary files."
+rm -rf "$TMP_DIR"
 
 log_message "--- Pipeline for ${SAMPLE_ID} finished successfully! ---"
 
-# --- Step 10: Display Final Metrics Report ---
-log_message "Step 10: Displaying run metrics summary for ${SAMPLE_ID}:"
+# --- Step 11: Display Final Metrics Report ---
+log_message "Step 11: Displaying run metrics summary for ${SAMPLE_ID}:"
 column -t -s $'\t' "$METRICS_FILE"
