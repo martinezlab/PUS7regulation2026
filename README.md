@@ -37,5 +37,7 @@ Code affiliated with the paper above. Topics are organized as follows:
 - ASO analysis
 
 ## Figure 6: cell line specificity
-read count normalization and correlation, imaging quantification
+- read count normalization and correlation
+- imaging quantification
+
 note: BIDdetect site calling including in Figure 2 pipeline, sequence and structure comparisons in Figure 4 pipeline
