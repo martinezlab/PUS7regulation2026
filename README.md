@@ -32,7 +32,9 @@ Code affiliated with the paper above. Topics are organized as follows:
 - structure analysis: MFE, pairing probabilities
 
 ## Figure 5: mutagenesis and ASOs
-mutagenesis creation and analysis, ASO analysis
+- mutagenesis creation: sequence, accessibility, structure
+- mutagenesis analysis: plots, pairing probability
+- ASO analysis
 
 ## Figure 6: cell line specificity
 read count normalization and correlation, imaging quantification
